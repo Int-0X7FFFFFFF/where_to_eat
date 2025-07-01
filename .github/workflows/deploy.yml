@@ -1,4 +1,3 @@
-# .github/workflows/deploy.yml
 name: CI/CD Deploy to deploy branch
 
 on:
@@ -11,39 +10,41 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 拉取仓库（包括所有历史）
-      - name: Checkout code
+      # 1. 首先 checkout 主分支到 src/ 目录，拿到所有源码
+      - name: Checkout source to src/
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0          # 需要完整历史以创建孤儿分支
+          path: src
+          fetch-depth: 0
           persist-credentials: true
 
-      # 2. 配置 Git 用户
+      # 2. 配置 git 用户信息
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # 3. 创建或重置 deploy 分支
+      # 3. 切到一个孤儿分支 deploy，并清空工作区
       - name: Create or reset deploy branch
         run: |
-          # 切到一个孤儿分支（没有父提交）
           git checkout --orphan deploy
-          # 删除所有文件和缓存的跟踪
           git rm -rf .
 
-      # 4. 仅复制静态资源
-      - name: Copy static files
+      # 4. 把 src/ 目录下的静态文件（HTML/CSS/JS/data.json）同步到根目录
+      - name: Copy static files from src/
         run: |
-          # 创建目录结构并复制
-          cp index.html ./
-          cp -R css/ ./css
-          cp -R js/  ./js
-          cp data.json ./
-          # 可选：保留一个 .nojekyll 阻止 GitHub Pages 忽略文件
+          rsync -av \
+            --exclude='.git/' \
+            --include='*/' \
+            --include='*.html' \
+            --include='data.json' \
+            --include='css/***' \
+            --include='js/***' \
+            --exclude='*' \
+            src/ ./
           touch .nojekyll
 
-      # 5. 提交并强制推送到 deploy
+      # 5. 提交并强制推送到 deploy 分支
       - name: Commit & Push to deploy
         run: |
           git add .
