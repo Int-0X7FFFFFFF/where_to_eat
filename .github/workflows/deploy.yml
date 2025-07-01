@@ -1,27 +1,51 @@
-name: Deploy to GitHub Pages
+# .github/workflows/deploy.yml
+name: CI/CD Deploy to deploy branch
 
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
-  build-and-deploy:
+  build-and-publish:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      # 1. 拉取仓库（包括所有历史）
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
-          node-version: '16'
+          fetch-depth: 0          # 需要完整历史以创建孤儿分支
+          persist-credentials: true
 
-      - name: Install dependencies
-        run: npm install
+      # 2. 配置 Git 用户
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./
+      # 3. 创建或重置 deploy 分支
+      - name: Create or reset deploy branch
+        run: |
+          # 切到一个孤儿分支（没有父提交）
+          git checkout --orphan deploy
+          # 删除所有文件和缓存的跟踪
+          git rm -rf .
+
+      # 4. 仅复制静态资源
+      - name: Copy static files
+        run: |
+          # 创建目录结构并复制
+          cp index.html ./
+          cp -R css/ ./css
+          cp -R js/  ./js
+          cp data.json ./
+          # 可选：保留一个 .nojekyll 阻止 GitHub Pages 忽略文件
+          touch .nojekyll
+
+      # 5. 提交并强制推送到 deploy
+      - name: Commit & Push to deploy
+        run: |
+          git add .
+          git commit -m "ci: deploy static site [skip ci]" || echo "No changes to commit"
+          git push -f origin deploy
